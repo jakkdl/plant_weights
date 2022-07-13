@@ -72,6 +72,12 @@ def todate(datestr: str) -> datetime.date:
     year, month, day = map(int, re.split(r'/|-', datestr))
     return datetime.date(year, month, day)
 
+def dayround(stamp: datetime.datetime) -> int:
+    return int(stamp.timestamp() // 86400 * 86400)
+
+def unixdate(date: datetime.date) -> int:
+    return dayround(datetime.datetime(date.year, date.month, date.day))
+
 def tasker_helper(filename='output.csv'):
     data = read_plants()
     names: list[str] = sorted({l[0] for l in data})
@@ -79,7 +85,7 @@ def tasker_helper(filename='output.csv'):
 
     offset: list[int] = [0] * len(names)
     nums: list[list[int]] = [[] for _ in names]
-    days_since_watering: list[int] = []
+    last_watering: list[int] = []
 
     # build nums
     for i, label in enumerate(sortedlabels):
@@ -108,31 +114,27 @@ def tasker_helper(filename='output.csv'):
     # build days since watering
     for label in sortedlabels:
         plantdata = data[label]
-        sorted_dates = sorted(plantdata.keys(), reverse=True)
+        sorted_dates = sorted(plantdata.keys())
         if not sorted_dates:
-            days_since_watering.append(0)
+            last_watering.append(dayround(datetime.datetime.now()))
             continue
         lastdate = sorted_dates[0]
-        prevweight = plantdata[sorted_dates[0]][0]
-        prevdays = 0
+        lastweight = plantdata[sorted_dates[0]][0]
         for date in sorted_dates:
             vals = plantdata[date]
-            days = int((lastdate - date).total_seconds() / 86400)
-            if len(vals) > 1:
-                days_since_watering.append(days)
-                break
             weight = plantdata[date][0]
-            if weight < prevweight:
-                days_since_watering.append(prevdays)
-                break
-            prevweight = weight
-            prevdays = days
-        else:
-            days_since_watering.append(prevdays)
+            if len(vals) > 1:
+                lastdate = date
+                lastweight = plantdata[date][1]
+                continue
+            if weight > lastweight:
+                lastdate = date
+            lastweight = weight
+        last_watering.append(unixdate(lastdate))
 
     with open(filename, 'w', encoding='utf-8') as file:
         file.write(','.join(names)+'\n')
-        for values in (offset,maxvals, minvals, days_since_watering, *nums):
+        for values in (offset,maxvals, minvals, last_watering, *nums):
             file.write(','.join(map(str, values))+'\n')
 
 # create datasets
