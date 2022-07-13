@@ -4,8 +4,8 @@ import re
 from typing import TypeAlias, Iterable
 from collections import defaultdict
 
-import numpy as np
-fit = np.polynomial.polynomial.Polynomial.fit
+#import numpy as np
+#fit = np.polynomial.polynomial.Polynomial.fit
 
 FILE = "foo2.csv"
 
@@ -69,7 +69,10 @@ def write_plants(data: Plants, filename='plants.csv') -> None:
 
 def todate(datestr: str) -> datetime.date:
     """convert a YYYY/MM/DD string into a datetime.date"""
-    year, month, day = map(int, re.split(r'/|-', datestr))
+    if re.match(r'\d\d/\d\d/\d\d\d\d', datestr):
+        month, day, year = map(int, datestr.split('/'))
+    else:
+        year, month, day = map(int, datestr.split('-'))
     return datetime.date(year, month, day)
 
 def dayround(stamp: datetime.datetime) -> int:
@@ -78,6 +81,31 @@ def dayround(stamp: datetime.datetime) -> int:
 def unixdate(date: datetime.date) -> int:
     return dayround(datetime.datetime(date.year, date.month, date.day))
 
+def get_last_watering(data: Plants) -> list[int]:
+    sortedlabels = sorted(data)
+    last_watering: list[int] = []
+
+    for label in sortedlabels:
+        plantdata = data[label]
+        sorted_dates = sorted(plantdata.keys())
+        if not sorted_dates:
+            last_watering.append(dayround(datetime.datetime.now()))
+            continue
+        lastdate = sorted_dates[0]
+        lastweight = plantdata[sorted_dates[0]][0]
+        for date in sorted_dates:
+            vals = plantdata[date]
+            weight = plantdata[date][0]
+            if len(vals) > 1:
+                lastdate = date
+                lastweight = plantdata[date][1]
+                continue
+            if weight > lastweight:
+                lastdate = date
+            lastweight = weight
+        last_watering.append(unixdate(lastdate))
+    return last_watering
+
 def tasker_helper(filename='output.csv'):
     data = read_plants()
     names: list[str] = sorted({l[0] for l in data})
@@ -85,7 +113,6 @@ def tasker_helper(filename='output.csv'):
 
     offset: list[int] = [0] * len(names)
     nums: list[list[int]] = [[] for _ in names]
-    last_watering: list[int] = []
 
     # build nums
     for i, label in enumerate(sortedlabels):
@@ -111,26 +138,7 @@ def tasker_helper(filename='output.csv'):
         #maxvals.append(np.max(weights)) #type: ignore
         minvals.append(min(min(weights, key=min)))
 
-    # build days since watering
-    for label in sortedlabels:
-        plantdata = data[label]
-        sorted_dates = sorted(plantdata.keys())
-        if not sorted_dates:
-            last_watering.append(dayround(datetime.datetime.now()))
-            continue
-        lastdate = sorted_dates[0]
-        lastweight = plantdata[sorted_dates[0]][0]
-        for date in sorted_dates:
-            vals = plantdata[date]
-            weight = plantdata[date][0]
-            if len(vals) > 1:
-                lastdate = date
-                lastweight = plantdata[date][1]
-                continue
-            if weight > lastweight:
-                lastdate = date
-            lastweight = weight
-        last_watering.append(unixdate(lastdate))
+    last_watering = get_last_watering(data)
 
     with open(filename, 'w', encoding='utf-8') as file:
         file.write(','.join(names)+'\n')
@@ -140,49 +148,49 @@ def tasker_helper(filename='output.csv'):
 # create datasets
 # each dataset consists of a plant and a start date,
 # and then a list of tuples of X (days since watering) and Y (weight).
-def do_fancy_numpy_stuff(): #pylint: disable=too-many-locals
-    """do the stuff"""
-    with open(FILE, encoding="utf-8") as file:
-        header = file.readline().strip().split(",")
-        datalines = [l.strip().split(",") for l in file.readlines()]
-
-    data: dict[tuple[str, datetime.date], list[tuple[int, int]]] = {}
-    for line in datalines:
-        label = ""
-        lastdate: datetime.date | None = None
-        lastval = 0
-        points: list[tuple[int, int]]
-        startdate: datetime.date | None = None
-        for field, value in zip(header, line):
-            match field:
-                case "min" | "max" | "last cell" | "current" | "wetness":
-                    continue
-                case "label":
-                    label = value
-                    continue
-                case "":
-                    assert lastdate is not None
-                    date = lastdate
-                case _:
-                    lastdate = date = todate(field)
-            if not value:
-                continue
-            intval = int(value)
-            if intval > lastval:
-                points = [(0, intval)]
-                data[(label, date)] = points
-                startdate = date
-            else:
-                assert startdate is not None
-                days_passed = int((date - startdate).total_seconds() / 86400)
-                points.append((days_passed, intval))
-            lastval = intval
-    long_data = {k: v for k,v in data.items() if len(v) > 5}
-    for key,val in long_data.items():
-        days, weights = zip(*val)
-        res = fit(days, weights, deg=2).coef
-
-        print(key, res)
+#def do_fancy_numpy_stuff(): #pylint: disable=too-many-locals
+#    """do the stuff"""
+#    with open(FILE, encoding="utf-8") as file:
+#        header = file.readline().strip().split(",")
+#        datalines = [l.strip().split(",") for l in file.readlines()]
+#
+#    data: dict[tuple[str, datetime.date], list[tuple[int, int]]] = {}
+#    for line in datalines:
+#        label = ""
+#        lastdate: datetime.date | None = None
+#        lastval = 0
+#        points: list[tuple[int, int]]
+#        startdate: datetime.date | None = None
+#        for field, value in zip(header, line):
+#            match field:
+#                case "min" | "max" | "last cell" | "current" | "wetness":
+#                    continue
+#                case "label":
+#                    label = value
+#                    continue
+#                case "":
+#                    assert lastdate is not None
+#                    date = lastdate
+#                case _:
+#                    lastdate = date = todate(field)
+#            if not value:
+#                continue
+#            intval = int(value)
+#            if intval > lastval:
+#                points = [(0, intval)]
+#                data[(label, date)] = points
+#                startdate = date
+#            else:
+#                assert startdate is not None
+#                days_passed = int((date - startdate).total_seconds() / 86400)
+#                points.append((days_passed, intval))
+#            lastval = intval
+#    long_data = {k: v for k,v in data.items() if len(v) > 5}
+#    for key,val in long_data.items():
+#        days, weights = zip(*val)
+#        res = fit(days, weights, deg=2).coef
+#
+#        print(key, res)
 
 def main():
     #print(read_plants())
