@@ -20,6 +20,8 @@ def read_plants(filename: str='plants.csv') -> Plants:
     labels : list[PlantLabel] = []
 
     for strlabel in labelline[1:]:
+        if strlabel == '':
+            continue
         reg = re.search(r'\d', strlabel)
         if not reg:
             labels.append((strlabel, 1))
@@ -193,8 +195,8 @@ def tasker_helper(filename='output.csv'):
 #        print(key, res)
 
 def main():
-    #print(read_plants())
-    tasker_helper()
+    print(read_plants())
+    #tasker_helper()
 
 if __name__ == "__main__":
     main()
