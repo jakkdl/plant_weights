@@ -13,7 +13,7 @@ PlantLabel : TypeAlias = tuple[str, int]
 PlantInfo : TypeAlias = defaultdict[datetime.date, list[int]]
 Plants : TypeAlias = dict[PlantLabel, PlantInfo]
 
-def read_plants(filename: str='plants.csv') -> Plants:
+def read_plants(filename: str='plants.csv') -> (Plants,Plants):
     with open(filename, encoding="utf-8") as file:
         labelline = file.readline().strip().split(",")
         datalines = [l.strip().split(",") for l in file.readlines()]
@@ -29,22 +29,30 @@ def read_plants(filename: str='plants.csv') -> Plants:
             numindex = reg.start()
             labels.append((strlabel[:numindex].strip(), int(strlabel[numindex:])))
     data : Plants = {label: defaultdict(list) for label in labels}
+    fert_data : Plants = {label: defaultdict(list) for label in labels}
 
     lastdate : datetime.date|None = None
     for line in datalines:
         date: datetime.date
+        fert = False
         if line[0] == "":
             assert lastdate is not None
             date = lastdate
+        elif line[0] == "fert":
+            fert = True
         else:
             lastdate = date = todate(line[0])
 
         for label, weight in zip(labels, line[1:], strict=False):
             if not weight.strip():
                 continue
-            data[label][date].append(int(weight.strip()))
+            if fert:
+                target=fert_data
+            else:
+                target=data
+            target[label][date].append(int(weight.strip()))
 
-    return data
+    return data,fert_data
 
 def write_plants(data: Plants, filename='plants.csv') -> None:
     sortedkeys = sorted(data.keys())
@@ -147,55 +155,15 @@ def tasker_helper(filename='output.csv'):
         for values in (offset,maxvals, minvals, last_watering, *nums):
             file.write(','.join(map(str, values))+'\n')
 
-# create datasets
-# each dataset consists of a plant and a start date,
-# and then a list of tuples of X (days since watering) and Y (weight).
-#def do_fancy_numpy_stuff(): #pylint: disable=too-many-locals
-#    """do the stuff"""
-#    with open(FILE, encoding="utf-8") as file:
-#        header = file.readline().strip().split(",")
-#        datalines = [l.strip().split(",") for l in file.readlines()]
-#
-#    data: dict[tuple[str, datetime.date], list[tuple[int, int]]] = {}
-#    for line in datalines:
-#        label = ""
-#        lastdate: datetime.date | None = None
-#        lastval = 0
-#        points: list[tuple[int, int]]
-#        startdate: datetime.date | None = None
-#        for field, value in zip(header, line):
-#            match field:
-#                case "min" | "max" | "last cell" | "current" | "wetness":
-#                    continue
-#                case "label":
-#                    label = value
-#                    continue
-#                case "":
-#                    assert lastdate is not None
-#                    date = lastdate
-#                case _:
-#                    lastdate = date = todate(field)
-#            if not value:
-#                continue
-#            intval = int(value)
-#            if intval > lastval:
-#                points = [(0, intval)]
-#                data[(label, date)] = points
-#                startdate = date
-#            else:
-#                assert startdate is not None
-#                days_passed = int((date - startdate).total_seconds() / 86400)
-#                points.append((days_passed, intval))
-#            lastval = intval
-#    long_data = {k: v for k,v in data.items() if len(v) > 5}
-#    for key,val in long_data.items():
-#        days, weights = zip(*val)
-#        res = fit(days, weights, deg=2).coef
-#
-#        print(key, res)
+def print_index(data):
+    sortedlabels = sorted(data)
+    for i,l in enumerate(sortedlabels):
+        print(i, l)
 
 def main():
-    print(read_plants())
+    data,fert_data = read_plants()
+    print_index(data)
+    #print(read_plants())
     #tasker_helper()
 
 if __name__ == "__main__":
